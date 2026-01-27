@@ -1,0 +1,33 @@
+[
+    {
+        "name": "City Cancer Center",
+        "location": "Downtown",
+        "specialties": [
+            "brain",
+            "lung",
+            "general"
+        ],
+        "availability": "High",
+        "distance_km": 5
+    },
+    {
+        "name": "Neuro-Oncology Institute",
+        "location": "Northside",
+        "specialties": [
+            "brain"
+        ],
+        "availability": "Medium",
+        "distance_km": 12
+    },
+    {
+        "name": "General Hospital",
+        "location": "West End",
+        "specialties": [
+            "breast",
+            "lung",
+            "general"
+        ],
+        "availability": "Low",
+        "distance_km": 8
+    }
+]
