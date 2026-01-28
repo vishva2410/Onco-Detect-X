@@ -1,21 +1,23 @@
 import os
 import json
 from app.models.schemas import LLMInput, LLMOutput
-from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
 
+import google.generativeai as genai
+
 class CognitiveService:
     def __init__(self):
-        self.api_key = os.getenv("OPENAI_API_KEY")
+        self.api_key = os.getenv("GEMINI_API_KEY")
         if self.api_key:
-            self.client = OpenAI(api_key=self.api_key)
+            genai.configure(api_key=self.api_key)
+            self.model = genai.GenerativeModel('gemini-1.5-flash')
         else:
-            self.client = None
+            self.model = None
 
     def analyze(self, data: LLMInput) -> LLMOutput:
-        if not self.client:
+        if not self.model:
             return self._mock_response(data)
 
         system_prompt = """You are a medical triage decision-support assistant.
@@ -38,6 +40,8 @@ Your task is to:
 If uncertainty exists, you must choose the safer, more conservative option."""
 
         user_prompt = f"""
+Analyze the following patient data:
+
 {{
   "cancer_type": "{data.cancer_type}",
   "ml_confidence": {data.ml_confidence},
@@ -46,10 +50,6 @@ If uncertainty exists, you must choose the safer, more conservative option."""
   "age": {data.age},
   "risk_factors": {json.dumps(data.risk_factors)}
 }}
-"""
-
-        task_instruction = """
-Analyze the input and respond ONLY in valid JSON.
 
 Steps to follow:
 1. Check if symptoms align with the given cancer type
@@ -62,26 +62,24 @@ Steps to follow:
 Do not use diagnostic language.
 Do not exceed the scope of decision support.
 
-Expected Format:
-{
+Respond ONLY in valid JSON with this exact format:
+{{
   "triage_level": "High",
   "risk_adjustment": 5,
   "explanation": "The imaging confidence is high and the reported symptoms are neurologically consistent, suggesting elevated risk that requires timely evaluation.",
   "recommendation": "Consult a specialist within 24–48 hours."
-}
+}}
 """
 
         try:
-            response = self.client.chat.completions.create(
-                model="gpt-4o", # Or gpt-3.5-turbo
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt + "\n\n" + task_instruction}
-                ],
-                response_format={ "type": "json_object" }
+            response = self.model.generate_content(
+                f"{system_prompt}\n\n{user_prompt}",
+                generation_config=genai.types.GenerationConfig(
+                    response_mime_type="application/json"
+                )
             )
             
-            content = response.choices[0].message.content
+            content = response.text
             parsed = json.loads(content)
             return LLMOutput(**parsed)
             

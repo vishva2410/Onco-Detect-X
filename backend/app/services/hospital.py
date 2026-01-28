@@ -3,7 +3,11 @@ import os
 from typing import List, Optional
 
 class HospitalService:
-    def __init__(self, data_path: str = "backend/data/hospitals.json"):
+    def __init__(self, data_path: str = None):
+        if data_path is None:
+            # Get the directory where this file is located
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            data_path = os.path.join(current_dir, "..", "..", "data", "hospitals.json")
         self.data_path = data_path
         self.hospitals = self._load_data()
 
