@@ -6,18 +6,24 @@ class PerceptionService:
         # Mock logic to simulate CNN inference
         # In a real scenario, this would load a model and run inference
         
+        # Create a deterministic random generator based on image content
+        # This ensures that re-analyzing the same image produces the same confidence score,
+        # which is crucial for caching downstream results (like LLM analysis).
+        seed = hash(image_data)
+        rng = random.Random(seed)
+
         # Simulate high confidence for demo purposes if specific keywords in filename or mocking
         # For now, return a random but generally high confidence for "suspected" cases
         
-        confidence = round(random.uniform(0.7, 0.99), 2)
+        confidence = round(rng.uniform(0.7, 0.99), 2)
         prediction = "suspected"
         
         # Occasional low confidence or negative result simulation
-        if random.random() < 0.1:
+        if rng.random() < 0.1:
             prediction = "normal"
-            confidence = round(random.uniform(0.8, 0.95), 2)
-        elif random.random() < 0.15:
-            confidence = round(random.uniform(0.4, 0.6), 2)
+            confidence = round(rng.uniform(0.8, 0.95), 2)
+        elif rng.random() < 0.15:
+            confidence = round(rng.uniform(0.4, 0.6), 2)
             prediction = "inconclusive"
 
         return PerceptionOutput(prediction=prediction, confidence=confidence)
