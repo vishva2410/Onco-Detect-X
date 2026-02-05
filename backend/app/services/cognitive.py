@@ -1,5 +1,6 @@
 import os
 import json
+from collections import OrderedDict
 from app.models.schemas import LLMInput, LLMOutput
 from dotenv import load_dotenv
 
@@ -16,13 +17,25 @@ class CognitiveService:
         else:
             self.model = None
 
+        # In-memory LRU Cache
+        self._cache = OrderedDict()
+        self._cache_size = 100
+
     async def analyze(self, data: LLMInput) -> LLMOutput:
         """
         Analyzes patient data using Gemini LLM asynchronously.
         Using async/await here prevents blocking the event loop during the network call.
         """
+        # Check cache
+        cache_key = data.model_dump_json()
+        if cache_key in self._cache:
+            self._cache.move_to_end(cache_key)
+            return self._cache[cache_key]
+
         if not self.model:
-            return self._mock_response(data)
+            result = self._mock_response(data)
+            self._update_cache(cache_key, result)
+            return result
 
         system_prompt = """You are a medical triage decision-support assistant.
 
@@ -85,11 +98,22 @@ Respond ONLY in valid JSON with this exact format:
             
             content = response.text
             parsed = json.loads(content)
-            return LLMOutput(**parsed)
+            result = LLMOutput(**parsed)
+            self._update_cache(cache_key, result)
+            return result
             
         except Exception as e:
             print(f"LLM Error: {e}")
-            return self._mock_response(data)
+            result = self._mock_response(data)
+            # Do not cache transient errors/fallbacks so we retry next time
+            return result
+
+    def _update_cache(self, key: str, value: LLMOutput):
+        if key in self._cache:
+            self._cache.move_to_end(key)
+        self._cache[key] = value
+        if len(self._cache) > self._cache_size:
+            self._cache.popitem(last=False)
 
     def _mock_response(self, data: LLMInput) -> LLMOutput:
         # Fallback if no API key or error
