@@ -1,4 +1,5 @@
 import random
+import zlib
 from app.models.schemas import PerceptionOutput
 
 class PerceptionService:
@@ -8,16 +9,22 @@ class PerceptionService:
         
         # Simulate high confidence for demo purposes if specific keywords in filename or mocking
         # For now, return a random but generally high confidence for "suspected" cases
+
+        # Deterministic seeding based on image content
+        # This ensures that the same image always yields the same prediction/confidence
+        # which allows the CognitiveService cache to be effective.
+        seed = zlib.adler32(image_data)
+        rng = random.Random(seed)
         
-        confidence = round(random.uniform(0.7, 0.99), 2)
+        confidence = round(rng.uniform(0.7, 0.99), 2)
         prediction = "suspected"
         
         # Occasional low confidence or negative result simulation
-        if random.random() < 0.1:
+        if rng.random() < 0.1:
             prediction = "normal"
-            confidence = round(random.uniform(0.8, 0.95), 2)
-        elif random.random() < 0.15:
-            confidence = round(random.uniform(0.4, 0.6), 2)
+            confidence = round(rng.uniform(0.8, 0.95), 2)
+        elif rng.random() < 0.15:
+            confidence = round(rng.uniform(0.4, 0.6), 2)
             prediction = "inconclusive"
 
         return PerceptionOutput(prediction=prediction, confidence=confidence)
