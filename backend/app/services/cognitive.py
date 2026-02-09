@@ -27,7 +27,17 @@ class CognitiveService:
         Using async/await here prevents blocking the event loop during the network call.
         """
         # Check cache
-        cache_key = data.model_dump_json()
+        # Optimize: Normalize list fields (sort them) to ensure cache hits regardless of order
+        # This prevents ["a", "b"] and ["b", "a"] from being treated as different keys
+        data_dict = data.model_dump()
+        if data_dict.get('symptoms'):
+            data_dict['symptoms'].sort()
+        if data_dict.get('risk_factors'):
+            data_dict['risk_factors'].sort()
+
+        # Use sort_keys=True to ensure deterministic JSON string
+        cache_key = json.dumps(data_dict, sort_keys=True)
+
         if cache_key in self._cache:
             self._cache.move_to_end(cache_key)
             return self._cache[cache_key]
