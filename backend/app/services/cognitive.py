@@ -27,7 +27,7 @@ class CognitiveService:
         Using async/await here prevents blocking the event loop during the network call.
         """
         # Check cache
-        cache_key = data.model_dump_json()
+        cache_key = self._generate_cache_key(data)
         if cache_key in self._cache:
             self._cache.move_to_end(cache_key)
             return self._cache[cache_key]
@@ -107,6 +107,17 @@ Respond ONLY in valid JSON with this exact format:
             result = self._mock_response(data)
             # Do not cache transient errors/fallbacks so we retry next time
             return result
+
+    def _generate_cache_key(self, data: LLMInput) -> str:
+        """Generates a deterministic cache key by sorting list fields."""
+        data_dict = data.model_dump()
+        # Sort list fields to ensure deterministic cache key
+        if 'symptoms' in data_dict:
+            data_dict['symptoms'] = sorted(data_dict['symptoms'])
+        if 'risk_factors' in data_dict:
+            data_dict['risk_factors'] = sorted(data_dict['risk_factors'])
+
+        return json.dumps(data_dict, sort_keys=True)
 
     def _update_cache(self, key: str, value: LLMOutput):
         if key in self._cache:
