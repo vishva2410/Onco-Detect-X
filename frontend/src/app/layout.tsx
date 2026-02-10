@@ -25,6 +25,16 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
+        <nav className="fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 z-50 flex items-center justify-between px-6 sm:px-8">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">OD</div>
+            <a href="/" className="font-bold text-xl tracking-tight text-slate-900">Onco-Detect X</a>
+          </div>
+          <div className="flex items-center gap-6">
+            <a href="/" className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors">Home</a>
+            <a href="/analysis" className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors">AI Analysis</a>
+          </div>
+        </nav>
         {children}
       </body>
     </html>
