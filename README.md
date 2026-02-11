@@ -92,3 +92,27 @@ Onco-Detect/
 
 ## Disclaimer
 This system is for **research and educational purposes only**. It does NOT diagnose cancer. All outputs should be verified by a medical professional.
+
+
+
+
+## 🏗️ System Architecture
+
+```mermaid
+graph TD
+    A[User / Clinician] -->|Uploads Scan + Patient History| B(Image Preprocessing Layer)
+    B -->|Normalized Tensor| C{Organ Selector}
+    
+    C -->|MRI| D[Brain CNN Model]
+    C -->|X-Ray| E[Lung CNN Model]
+    C -->|Mammogram| F[Breast CNN Model]
+    
+    D & E & F -->|Feature Vector & Probability| G[Feature Extraction]
+    
+    G --> H[LLM Clinical Reasoning Engine]
+    A -->|Text Context| H
+    
+    H --> I{Safety & Audit Check}
+    I -->|Low Confidence| J[Flag for Human Review]
+    I -->|High Confidence| K[Generate Structured Triage Report]
+
