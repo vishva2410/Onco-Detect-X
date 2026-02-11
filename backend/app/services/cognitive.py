@@ -1,5 +1,6 @@
 import os
 import json
+from collections import OrderedDict
 from app.models.schemas import LLMInput, LLMOutput
 from dotenv import load_dotenv
 
@@ -16,9 +17,26 @@ class CognitiveService:
         else:
             self.model = None
 
-    def analyze(self, data: LLMInput) -> LLMOutput:
+        # In-memory LRU cache to store LLM results
+        # Optimization: Reduces redundant API calls for identical inputs
+        self._cache = OrderedDict()
+        self._cache_max_size = 100
+
+    async def analyze(self, data: LLMInput) -> LLMOutput:
+        """
+        Analyzes patient data using Gemini LLM asynchronously.
+        Using async/await here prevents blocking the event loop during the network call.
+        """
         if not self.model:
             return self._mock_response(data)
+
+        # ⚡ Optimization: Check cache first
+        # We use the JSON representation of the input as the cache key.
+        cache_key = data.model_dump_json()
+        if cache_key in self._cache:
+            # Move to end to mark as recently used
+            self._cache.move_to_end(cache_key)
+            return self._cache[cache_key]
 
         system_prompt = """You are a medical triage decision-support assistant.
 
@@ -72,7 +90,7 @@ Respond ONLY in valid JSON with this exact format:
 """
 
         try:
-            response = self.model.generate_content(
+            response = await self.model.generate_content_async(
                 f"{system_prompt}\n\n{user_prompt}",
                 generation_config=genai.types.GenerationConfig(
                     response_mime_type="application/json"
@@ -81,7 +99,16 @@ Respond ONLY in valid JSON with this exact format:
             
             content = response.text
             parsed = json.loads(content)
-            return LLMOutput(**parsed)
+            result = LLMOutput(**parsed)
+
+            # ⚡ Optimization: Store in cache
+            self._cache[cache_key] = result
+            self._cache.move_to_end(cache_key)
+            if len(self._cache) > self._cache_max_size:
+                # Remove the first item (least recently used)
+                self._cache.popitem(last=False)
+
+            return result
             
         except Exception as e:
             print(f"LLM Error: {e}")
