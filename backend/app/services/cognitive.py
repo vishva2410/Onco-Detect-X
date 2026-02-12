@@ -1,5 +1,6 @@
 import os
 import json
+import collections
 from app.models.schemas import LLMInput, LLMOutput
 from dotenv import load_dotenv
 
@@ -16,7 +17,27 @@ class CognitiveService:
         else:
             self.model = None
 
+        # In-memory LRU Cache
+        self.cache = collections.OrderedDict()
+        self.CACHE_SIZE = 100
+
     def analyze(self, data: LLMInput) -> LLMOutput:
+        # Generate deterministic cache key
+        cache_key = None
+        try:
+            # Use model_dump() for Pydantic v2, sort lists for consistent key
+            key_data = data.model_dump()
+            key_data["symptoms"] = sorted(key_data["symptoms"])
+            key_data["risk_factors"] = sorted(key_data["risk_factors"])
+            cache_key = json.dumps(key_data, sort_keys=True)
+
+            if cache_key in self.cache:
+                self.cache.move_to_end(cache_key)
+                return self.cache[cache_key]
+        except Exception:
+            # Continue without caching if serialization fails
+            pass
+
         if not self.model:
             return self._mock_response(data)
 
@@ -81,7 +102,15 @@ Respond ONLY in valid JSON with this exact format:
             
             content = response.text
             parsed = json.loads(content)
-            return LLMOutput(**parsed)
+            result = LLMOutput(**parsed)
+
+            # Update Cache
+            if cache_key:
+                self.cache[cache_key] = result
+                if len(self.cache) > self.CACHE_SIZE:
+                    self.cache.popitem(last=False) # Remove oldest
+
+            return result
             
         except Exception as e:
             print(f"LLM Error: {e}")
