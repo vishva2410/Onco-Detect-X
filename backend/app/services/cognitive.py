@@ -1,5 +1,6 @@
 import os
 import json
+from collections import OrderedDict
 from app.models.schemas import LLMInput, LLMOutput
 from dotenv import load_dotenv
 
@@ -16,9 +17,33 @@ class CognitiveService:
         else:
             self.model = None
 
+        # LRU Cache for expensive LLM calls
+        # This prevents redundant API calls for identical inputs
+        self._cache = OrderedDict()
+        self._cache_capacity = 100
+
     def analyze(self, data: LLMInput) -> LLMOutput:
+        # Generate cache key using sorted JSON dump of inputs
+        # We need to sort keys to ensure deterministic key generation
+        try:
+            # Pydantic v2
+            data_dict = data.model_dump()
+        except AttributeError:
+            # Pydantic v1 fallback
+            data_dict = data.dict()
+
+        cache_key = json.dumps(data_dict, sort_keys=True)
+
+        # Check cache
+        if cache_key in self._cache:
+            self._cache.move_to_end(cache_key)
+            return self._cache[cache_key]
+
         if not self.model:
-            return self._mock_response(data)
+            # If mocking due to missing config, cache the mock response too
+            result = self._mock_response(data)
+            self._update_cache(cache_key, result)
+            return result
 
         system_prompt = """You are a medical triage decision-support assistant.
 
@@ -81,11 +106,21 @@ Respond ONLY in valid JSON with this exact format:
             
             content = response.text
             parsed = json.loads(content)
-            return LLMOutput(**parsed)
+            result = LLMOutput(**parsed)
+
+            # Cache successful response
+            self._update_cache(cache_key, result)
+            return result
             
         except Exception as e:
             print(f"LLM Error: {e}")
+            # Do NOT cache error fallback, allow retry later
             return self._mock_response(data)
+
+    def _update_cache(self, key, value):
+        self._cache[key] = value
+        if len(self._cache) > self._cache_capacity:
+            self._cache.popitem(last=False)
 
     def _mock_response(self, data: LLMInput) -> LLMOutput:
         # Fallback if no API key or error
