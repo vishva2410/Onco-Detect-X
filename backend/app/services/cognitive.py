@@ -1,5 +1,7 @@
 import os
 import json
+import hashlib
+from collections import OrderedDict
 from app.models.schemas import LLMInput, LLMOutput
 from dotenv import load_dotenv
 
@@ -16,7 +18,37 @@ class CognitiveService:
         else:
             self.model = None
 
-    def analyze(self, data: LLMInput) -> LLMOutput:
+        # Initialize LRU Cache
+        self.cache = OrderedDict()
+        self.MAX_CACHE_SIZE = 100
+
+    def _generate_cache_key(self, data: LLMInput) -> str:
+        """Generates a deterministic cache key from LLMInput."""
+        # Convert to dict
+        data_dict = data.model_dump()
+
+        # Sort lists to ensure consistency (e.g. symptoms order shouldn't matter)
+        if 'symptoms' in data_dict and isinstance(data_dict['symptoms'], list):
+            data_dict['symptoms'] = sorted(data_dict['symptoms'])
+
+        if 'risk_factors' in data_dict and isinstance(data_dict['risk_factors'], list):
+            data_dict['risk_factors'] = sorted(data_dict['risk_factors'])
+
+        # Serialize to JSON with sorted keys
+        json_str = json.dumps(data_dict, sort_keys=True)
+
+        # Create hash
+        return hashlib.sha256(json_str.encode('utf-8')).hexdigest()
+
+    async def analyze(self, data: LLMInput) -> LLMOutput:
+        cache_key = self._generate_cache_key(data)
+
+        # Check cache
+        if cache_key in self.cache:
+            # Move to end (most recently used)
+            self.cache.move_to_end(cache_key)
+            return self.cache[cache_key]
+
         if not self.model:
             return self._mock_response(data)
 
@@ -72,7 +104,8 @@ Respond ONLY in valid JSON with this exact format:
 """
 
         try:
-            response = self.model.generate_content(
+            # Async call
+            response = await self.model.generate_content_async(
                 f"{system_prompt}\n\n{user_prompt}",
                 generation_config=genai.types.GenerationConfig(
                     response_mime_type="application/json"
@@ -81,7 +114,14 @@ Respond ONLY in valid JSON with this exact format:
             
             content = response.text
             parsed = json.loads(content)
-            return LLMOutput(**parsed)
+            result = LLMOutput(**parsed)
+
+            # Update cache
+            self.cache[cache_key] = result
+            if len(self.cache) > self.MAX_CACHE_SIZE:
+                self.cache.popitem(last=False) # Remove LRU (first item)
+
+            return result
             
         except Exception as e:
             print(f"LLM Error: {e}")
