@@ -8,7 +8,7 @@ OncoDetect X is an AI-assisted cancer triage and decision-support system. It com
 - **Perception Layer**: Simulates CNN analysis for initial confidence
 - **Risk Aggregation**: Combines ML scores, symptoms, and risk factors deterministically
 - **Cognitive Layer**: Uses LLM to contextualize findings and generate explanations
-- **AI Oncologist Analysis**: Upload medical scans or enter symptoms for Gemini-powered cancer assessment with interactive charts
+- **AI Oncologist Analysis**: Upload medical scans or enter symptoms for Gem ini-powered cancer assessment with interactive charts
 - **Hospital Recommendation**: Suggests nearby facilities based on specialization
 - **Production-Grade UI**: Modern Next.js interface with interactive Plotly visualizations
 
